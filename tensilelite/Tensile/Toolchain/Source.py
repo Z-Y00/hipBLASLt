@@ -57,6 +57,7 @@ def _computeSourceCodeObjectFilename(target: str, base: str, buildPath: Union[Pa
     """
     coPath = None
     buildPath = Path(buildPath)
+
     if "TensileLibrary" in base and "fallback" in base:
         coPath = buildPath / "{0}_{1}.hsaco.raw".format(base, arch)
     elif "TensileLibrary" in base:
@@ -65,7 +66,7 @@ def _computeSourceCodeObjectFilename(target: str, base: str, buildPath: Union[Pa
         if arch in baseVariant:
             coPath = buildPath / (baseVariant + ".hsaco.raw")
     else:
-        coPath= buildPath / "{0}.so-000-{1}.hsaco.raw".format(base, arch)
+        coPath = buildPath / "{0}.so-000-{1}.hsaco.raw".format(base, arch)
 
     return coPath
 
@@ -118,6 +119,14 @@ def buildSourceCodeObjectFiles(
 
     for src, dst in zip(coPathsRaw, coPaths):
         shutil.move(src, dst)
+        # Runtime may request helper hsaco without target-feature suffix while
+        # toolchain emits feature-qualified names (e.g. gfx950-xnack+). Keep an
+        # unsuffixed alias so lazy-loading dependencies resolve consistently.
+        alias = re.sub(r"((?:\.so-000-)(gfx[0-9a-f]+))-(?:xnack[+-]|sramecc[+-])(\.hsaco)$",
+                       r"\1\3",
+                       dst)
+        if alias != dst and not Path(alias).exists():
+            shutil.copy2(dst, alias)
 
     stop = timer()
     print1(f"buildSourceCodeObjectFile time (s): {(stop-start):3.2f}")

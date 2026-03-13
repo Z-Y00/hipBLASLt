@@ -124,7 +124,11 @@ def removeInvalidSolutionsAndKernels(results, kernels, solutions, errorTolerant,
     for kernIdx, r in (
         tqdm(enumerate(results)) if printLevel > 1 else enumerate(results)
     ):
-        if r.err != 0:
+        isInvalid = r.err != 0
+        if not isInvalid and not r.src and not kernels[kernIdx].duplicate:
+            isInvalid = True
+            printWarning(f"Kernel {r.name} generated empty source without error flag, marking as invalid")
+        if isInvalid:
             if not errorTolerant:
                 print(
                     "\nKernel generation failed for kernel: {}".format(
@@ -289,7 +293,13 @@ def writeSolutionsAndKernels(
 
     def assemble(ret):
         p, isa, wavefrontsize, _ = ret
-        asmToolchain.assembler(isaToGfx(isa), wavefrontsize, str(p), str(p.with_suffix(".o")))
+        if p.stat().st_size == 0:
+            print(f"Tensile::WARNING: Skipping empty assembly file: {p}")
+            return
+        try:
+            asmToolchain.assembler(isaToGfx(isa), wavefrontsize, str(p), str(p.with_suffix(".o")))
+        except RuntimeError as e:
+            printWarning(f"Assembly failed for {p.name}, skipping: {str(e)[:200]}")
 
     unaryWriteAssembly = functools.partial(writeAssembly, assemblyTmpPath)
     compose = lambda *F: functools.reduce(lambda f, g: lambda x: f(g(x)), F)
@@ -378,7 +388,15 @@ def writeSolutionsAndKernelsTCL(
 
     def assemble(ret, removeTemporaries: bool):
         asmPath, isa, wavefrontsize, result = ret
-        asmToolchain.assembler(isaToGfx(isa), wavefrontsize, str(asmPath), str(asmPath.with_suffix(".o")))
+        if asmPath.stat().st_size == 0:
+            print(f"Tensile::WARNING: Skipping empty assembly file: {asmPath}")
+            if removeTemporaries:
+                asmPath.unlink()
+            return result
+        try:
+            asmToolchain.assembler(isaToGfx(isa), wavefrontsize, str(asmPath), str(asmPath.with_suffix(".o")))
+        except RuntimeError as e:
+            printWarning(f"Assembly failed for {asmPath.name}, skipping: {str(e)[:200]}")
         if removeTemporaries:
             asmPath.unlink()
         return result

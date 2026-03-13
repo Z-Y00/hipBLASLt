@@ -93,7 +93,13 @@ def buildAssemblyCodeObjectFiles(
           coFileMap[asmDir / (coName + extCoRaw)].add(str(asmDir / (kernel["BaseName"] + extObj)))
 
       for coFileRaw, objFiles in coFileMap.items():
-        linker(objFiles, str(coFileRaw))
+        existingObjFiles = [f for f in objFiles if Path(f).exists()]
+        if not existingObjFiles:
+          continue
+        if len(existingObjFiles) < len(objFiles):
+          skipped = len(objFiles) - len(existingObjFiles)
+          print(f"Tensile::WARNING: Skipping {skipped} missing object file(s) for {coFileRaw.name}")
+        linker(existingObjFiles, str(coFileRaw))
         coFile = destDir / coFileRaw.name.replace(extCoRaw, extCo)
         if compress:
           bundler.compress(str(coFileRaw), str(coFile), gfx)

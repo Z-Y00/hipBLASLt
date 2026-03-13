@@ -49,6 +49,7 @@ namespace TensileLite
         explicit RotatingMemory(size_t num) : m_rotatingBufferNum(num) {}
         ~RotatingMemory() {}
         void addRotatingSize(std::vector<size_t> sizes);
+        void ensureMinRotatingSize(size_t tensorIdx, size_t minBytes);
         void createRotatingMemory(int32_t mode, size_t rotatingSize);
         std::vector<std::vector<RotatingMemoryUnit>> getRotatingMemory() const;
         std::shared_ptr<void> getData() const;

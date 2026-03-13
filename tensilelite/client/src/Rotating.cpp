@@ -29,6 +29,8 @@
 #include <hip/hip_runtime.h>
 #include <iostream>
 #include <math.h>
+#include <sstream>
+#include <stdexcept>
 
 namespace TensileLite
 {
@@ -44,6 +46,19 @@ namespace TensileLite
             totalSize += size;
         }
         m_rotatingInfo.push_back(RotatingUnitInfo{sizes, totalSize, 0});
+    }
+
+    void RotatingMemory::ensureMinRotatingSize(size_t tensorIdx, size_t minBytes)
+    {
+        for(auto& info : m_rotatingInfo)
+        {
+            if(tensorIdx < info.sizes.size() && info.sizes[tensorIdx] > 0
+               && info.sizes[tensorIdx] < minBytes)
+            {
+                info.totalSize += (minBytes - info.sizes[tensorIdx]);
+                info.sizes[tensorIdx] = minBytes;
+            }
+        }
     }
 
     void RotatingMemory::createRotatingMemory(int32_t mode, size_t rotatingSize)
@@ -111,8 +126,16 @@ namespace TensileLite
         m_size = totalSize;
         m_largestUnitSize = largestUnitSize;
 
-        void* ptr   = nullptr;
-        static_cast<void>(hipMalloc(&ptr, totalSize));
+        void*      ptr = nullptr;
+        hipError_t err = hipMalloc(&ptr, totalSize);
+        if(err != hipSuccess || ptr == nullptr)
+        {
+            std::ostringstream msg;
+            msg << "Failed to allocate rotating memory: " << totalSize
+                << " bytes (" << (totalSize / (1024.0 * 1024.0)) << " MB). "
+                << "hipMalloc returned " << hipGetErrorString(err);
+            throw std::runtime_error(msg.str());
+        }
         m_data = std::shared_ptr<void>(ptr, hipFree);
         std::cout << "Rotating memory size: " << totalSize << std::endl;
 

@@ -885,7 +885,7 @@ namespace TensileLite
 
         {
             m_rotatingBuffer
-                = args["rotating-buffer-size"].as<int32_t>() * 1024 * 1024; // Change to bytes
+                = static_cast<int64_t>(args["rotating-buffer-size"].as<int32_t>()) * 1024 * 1024; // Change to bytes
             m_rotatingMode   = args["rotating-buffer-mode"].as<int32_t>();
             m_boundsCheck    = args["bounds-check"].as<BoundsCheckMode>();
             m_curBoundsCheck = m_boundsCheck;
@@ -1206,6 +1206,22 @@ namespace TensileLite
                 }
                 std::cout << "Tensor name " << m_vdata[i].name << " init mode "
                           << ToString(m_vdata[i].init) << std::endl;
+            }
+
+            // Sync rotating memory sizes with inflated maxElements (bounds-check
+            // rounding may have enlarged maxElements beyond what was originally
+            // registered with addRotatingSize)
+            if(m_rotatingBuffer > 0 && m_rm)
+            {
+                for(size_t i = 0; i < m_vdata.size(); i++)
+                {
+                    for(auto& p : m_vdata[i].pristine)
+                    {
+                        size_t neededBytes
+                            = DataTypeInfo::Get(p.first).elementSize * p.second.maxElements;
+                        m_rm->ensureMinRotatingSize(i, neededBytes);
+                    }
+                }
             }
 
             // Init contants
@@ -2504,21 +2520,21 @@ namespace TensileLite
             {
                 auto    castInputs   = static_pointer_cast<ContractionInputs>(inputs);
                 size_t  rotatingSize = getRotatingSize(*gemmProblem, *castInputs);
-                int32_t rotatingNum
+                int64_t rotatingNum
                     = min(maxRotatingBufferNum, ceil((float)m_rotatingBuffer / rotatingSize))
                       - 1; // Minus the original buffer.
 
                 // <= 0 means don't rotating
-                rotatingNum = max(0, rotatingNum);
+                rotatingNum = max((int64_t)0, rotatingNum);
 
-                int32_t totalRotatingSizeNeeded = rotatingNum * rotatingSize;
+                int64_t totalRotatingSizeNeeded = rotatingNum * rotatingSize;
                 std::cout << "Rotating buffer set to: " << m_rotatingBuffer
                           << ". Rotating num: " << rotatingNum << std::endl;
                 if(m_rotatingMode == 0)
                 {
                     auto rotatingAllocatedSize
                         = m_rm->getDataSize() - m_rm->getDataLargestUnitSize();
-                    if(totalRotatingSizeNeeded > rotatingAllocatedSize)
+                    if(totalRotatingSizeNeeded > (int64_t)rotatingAllocatedSize)
                     {
                         std::cout << "Rotating buffer size: " << rotatingAllocatedSize
                                   << " is not enough for rotating buffer size: " << rotatingSize
@@ -2566,21 +2582,21 @@ namespace TensileLite
                     rotatingSize
                         += getRotatingSize(groupedProblem->gemms[i], castInputs->grouped[i]);
                 }
-                int32_t rotatingNum
+                int64_t rotatingNum
                     = min(maxRotatingBufferNum, ceil((float)m_rotatingBuffer / rotatingSize))
                       - 1; // Minus the original buffer.
 
                 // <= 0 means don't rotating
-                rotatingNum = max(0, rotatingNum);
+                rotatingNum = max((int64_t)0, rotatingNum);
 
-                int32_t totalRotatingSizeNeeded = rotatingNum * rotatingSize;
+                int64_t totalRotatingSizeNeeded = rotatingNum * rotatingSize;
                 std::cout << "Rotating buffer set to: " << m_rotatingBuffer
                           << ". Rotating num: " << rotatingNum << std::endl;
                 if(m_rotatingMode == 0)
                 {
                     auto rotatingAllocatedSize
                         = m_rm->getDataSize() - m_rm->getDataLargestUnitSize();
-                    if(totalRotatingSizeNeeded > rotatingAllocatedSize)
+                    if(totalRotatingSizeNeeded > (int64_t)rotatingAllocatedSize)
                     {
                         std::cout << "Rotating buffer size: " << rotatingAllocatedSize
                                   << " is not enough for rotating buffer size: " << rotatingSize

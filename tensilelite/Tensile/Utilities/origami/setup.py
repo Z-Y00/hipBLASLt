@@ -38,8 +38,14 @@ if __name__ == "__main__":
     sys.argv = [sys.argv[0]] + unknown  # Preserve unrecognized arguments for setuptools
 
     source_dir = Path(args.source)
+    # Try standard layout first, fall back to tensilelite repo layout
     cpp_path = source_dir / "lib" / "source" / "analytical" / "*.cpp"
     cpp_files = sorted(glob.glob(str(cpp_path)))
+    include_dir = str(source_dir / "lib" / "include")
+    if not cpp_files:
+        cpp_path = source_dir / "src" / "analytical" / "*.cpp"
+        cpp_files = sorted(glob.glob(str(cpp_path)))
+        include_dir = str(source_dir / "include")
 
     cpp_files = ["origami_module.cpp"] + cpp_files
 
@@ -49,7 +55,7 @@ if __name__ == "__main__":
             cpp_files,
             include_dirs=[
                 pybind11.get_include(),
-                str(source_dir / "lib" / "include"),
+                include_dir,
                 os.path.join(ROCM_PATH, "include"),
             ],
             language="c++",
